@@ -14,9 +14,20 @@ class PublicationTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / "data").mkdir()
-        source = Path(__file__).resolve().parents[1] / "data"
-        for path in source.glob("*.json"):
-            (self.root / "data" / path.name).write_bytes(path.read_bytes())
+        # Unit cases must not depend on the version/date/counts of the next real release.
+        fixture = {
+            "catalog.json": {"airports": {
+                "DOH": {"city": "多哈", "cityEn": "Doha", "tz": "Asia/Qatar"},
+                "LHR": {"city": "伦敦", "cityEn": "London", "tz": "Europe/London"}},
+                "flights": {"001": {"from": "DOH", "to": "LHR", "ret": "002", "std": "12:40",
+                    "sta": "18:00", "arriveNextDay": False, "redEye": False, "weekdays": "1234567"}}},
+            "aliases.json": {"LVE": "ABLV", "PSBY": "SBY"},
+            "release.json": {"version": 2, "validFrom": "2026-10-27", "validUntil": "2027-04-30"},
+            "provenance.json": {"status": "bootstrap-reference", "description": "Test fixture",
+                "timetableVerifiedAt": None, "referenceLinks": ["https://example.com/reference"]},
+        }
+        for name, obj in fixture.items():
+            (self.root / "data" / name).write_text(json.dumps(obj), encoding="utf-8")
         self.today = dt.date(2026, 10, 28)
 
     def change(self, name, transform):
@@ -29,7 +40,7 @@ class PublicationTest(unittest.TestCase):
         import hashlib
         package, metadata = build(self.root, self.today)
         self.assertEqual(package["sha256"], hashlib.sha256(package["payload"].encode()).hexdigest())
-        self.assertEqual(170, metadata["flightCount"])
+        self.assertEqual(1, metadata["flightCount"])
         self.assertIsNone(metadata["timetableVerifiedAt"])
 
     def test_same_package_is_idempotent(self):
