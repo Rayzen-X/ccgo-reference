@@ -1,0 +1,62 @@
+name: Validate and publish reference
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reference-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - run: python3 -m unittest discover -s scripts -v
+      - name: Build and compare with current published package
+        shell: bash
+        run: |
+          if git show-ref --verify --quiet refs/remotes/origin/published; then
+            git show origin/published:reference.json > "$RUNNER_TEMP/previous.json"
+            python3 scripts/publish.py --previous "$RUNNER_TEMP/previous.json"
+          else
+            python3 scripts/publish.py
+          fi
+  publish:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Revalidate and publish only generated data
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/ccgo-published"
+          if git show-ref --verify --quiet refs/remotes/origin/published; then
+            git show origin/published:reference.json > "$RUNNER_TEMP/previous.json"
+            python3 scripts/publish.py --previous "$RUNNER_TEMP/previous.json"
+            git worktree add --detach "$target" origin/published
+          else
+            python3 scripts/publish.py
+            git worktree add --detach "$target" HEAD
+            git -C "$target" checkout --orphan ccgo-published
+            git -C "$target" rm -rf .
+          fi
+          cp dist/reference.json dist/provenance.json dist/README.md "$target/"
+          git -C "$target" add reference.json provenance.json README.md
+          if ! git -C "$target" diff --cached --quiet; then
+            git -C "$target" -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "Publish validated reference package"
+            git -C "$target" push origin HEAD:published
+          fi

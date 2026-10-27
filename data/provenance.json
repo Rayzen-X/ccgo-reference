@@ -1,0 +1,7 @@
+{
+  "status": "bootstrap-reference",
+  "description": "首次上线：同步丛人去哪了 1.0.28 内置参考库，不代表重新核实了全部航班时刻。",
+  "timetableVerifiedAt": null,
+  "referenceLinks": ["https://booking.qatarairways.com/nsp/views/timeTableIndex.xhtml"],
+  "maintenance": "核实后修改 catalog、aliases 和 release，提交后自动校验发布；不自动延长资料有效期，不把未审核抓取结果直接发布。"
+}
